@@ -7,6 +7,8 @@ near each other in a [force-directed layout](https://github.com/mbostock/d3/wiki
 
 ## Usage
 
+  1. Check out this code.
+  1. `bundle install`
   1. Create a mysql database and set the connection parameters in the `db` method in `Rakefile`.
   1. `rake create_tables`
   1. Enter your group's data into the `raw` table.
@@ -16,4 +18,4 @@ near each other in a [force-directed layout](https://github.com/mbostock/d3/wiki
 
 ## Example
 
-![screenshot of some sample output](http://img.deanspot.org/monosnap/a/localhost8000force_directed.html_2015-01-02_22-50.jpg)
+![screenshot of some sample output](http://img.deanspot.org/monosnap/a/localhost8000_2015-01-03_17-49.jpg)

@@ -9,13 +9,20 @@ def db
   )
 end
 
+# return the string color name for the predominant color in a row of `raw` data
+def color(row)
+  row.
+    select{|k,v| ['blue', 'green', 'gold', 'orange'].include?(k) }.
+    sort_by{|k,v| v * -1}.
+    first[0]
+end
+
 desc "create tables"
 task :create_tables do
   sql = <<-EOF
   CREATE TABLE `raw` (
     `id` tinyint(4) unsigned NOT NULL AUTO_INCREMENT,
     `name` varchar(255) NOT NULL DEFAULT '',
-    `color` varchar(255) NOT NULL,
     `orange` tinyint(4) unsigned NOT NULL,
     `blue` tinyint(4) unsigned NOT NULL,
     `gold` tinyint(4) unsigned NOT NULL,
@@ -31,8 +38,8 @@ task :create_tables do
     `raw_id_2` tinyint(4) unsigned NOT NULL,
     `orange_diff` tinyint(4) NOT NULL,
     `blue_diff` tinyint(4) NOT NULL,
-    `green_diff` tinyint(4) NOT NULL,
     `gold_diff` tinyint(4) NOT NULL,
+    `green_diff` tinyint(4) NOT NULL,
     `positive_diff` tinyint(4) NOT NULL,
     `unique` tinyint(4) NOT NULL,
     PRIMARY KEY (`raw_id_1`,`raw_id_2`)
@@ -97,6 +104,22 @@ task export: :build_diffs do
   end
   File.open('data/people.json', 'w') {|f| f.write(people.to_json)}
 
+  pie = []
+  people.each do |p|
+    pie << {
+      id: p['id'],
+      name: p['name'],
+      color: color(p),
+      colors: [
+        {color:"orange", value:p['orange']},
+        {color:"blue",   value:p['blue']},
+        {color:"gold",   value:p['gold']},
+        {color:"green",  value:p['green']}
+      ]
+    }
+  end
+  File.open('data/pie.json', 'w') {|f| f.write(pie.to_json)}
+
   min_diff = 1000
   max_diff = -1000
   result = []
@@ -109,15 +132,15 @@ task export: :build_diffs do
 
   # nodes must associate via index positions in `people`
   id_to_idx = {}
-  people.each_with_index do |item, idx|
-    id_to_idx[item['id']] = idx
+  pie.each_with_index do |item, idx|
+    id_to_idx[item[:id]] = idx
   end
 
-  result = {nodes:people, links:[]}
+  result = {nodes:pie, links:[]}
   db.query("SELECT raw_id_1 as id1, raw_id_2 as id2, positive_diff as diff FROM diffs WHERE `unique` = 1").each do |row|
 
     # drop long edges to allow significant connections to show more clearly
-    next if row['diff'] > (max_diff/3)
+    next if row['diff'] > (max_diff/3 + 2)
 
     result[:links] << {
       source: id_to_idx[row['id1']],
@@ -126,6 +149,8 @@ task export: :build_diffs do
     }
   end
   File.open('data/network.json', 'w') {|f| f.write(result.to_json)}
+
+
 end
 
 task default: :export
