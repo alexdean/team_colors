@@ -1,4 +1,4 @@
-var width = 1200,
+var width = 1400,
   height = 1200;
 
 // pie charts
@@ -6,62 +6,57 @@ var r = 20,
   outerBorder = 5,
   innerBorder = 1;
 
-var strength = d3.scale.linear()
-  .domain([0, 16])
-  .range([0, 1]);
-
-var force = d3.layout.force()
-  .charge(-500)
-  .chargeDistance(500)
-  .size([width, height])
-  .linkStrength(function(link, idx) {
-    return strength(link.distance);
-  })
-  .linkDistance(function(link, idx) {
-    return link.distance * 45;
-  });
-
 var svg = d3.select("body").append("svg")
     .attr("width", width)
     .attr("height", height);
 
 // extract into PieChart component
 var arc = d3.svg.arc()
-      .outerRadius(r - outerBorder - innerBorder);
+  .outerRadius(r - outerBorder - innerBorder);
 var pie = d3.layout.pie()
-  .value(function(d) { console.log('pie value', d); return d.value; });
+  .value(function(d) { return d.value; });
 
 d3.json("data/network.json", function(error, graph) {
+
+  // short links are stronger than long ones
+  // to keep 'who is close to who' more accurate
+  var linkStrength = d3.scale.linear()
+    .domain([graph.meta.min_dist, graph.meta.max_dist])
+    .range([1, 0]);
+
+  var force = d3.layout.force()
+    .charge(-30)
+    //.chargeDistance(500)
+    .size([width, height])
+    .linkStrength(function(link, idx) {
+      return linkStrength(link.distance);
+    })
+    .linkDistance(function(link, idx) {
+      return link.distance * 55;
+    });
+
 
   force
     .nodes(graph.nodes)
     .links(graph.links)
     .start();
 
+  // close links are darker than long ones, but not by much.
+  // ordinal scale with a few pre-set css classes might be better.
+  var strokeColor = d3.scale.pow()
+    .domain([graph.meta.min_dist, graph.meta.max_dist])
+    .range(['#999', '#eee'])
+
   var link = svg.selectAll(".link")
     .data(graph.links).enter()
       .append("line")
-      .attr("class", function(d,i) { return d.distance <= 5 ? 'link-close' : 'link'; } )
-      //.style("stroke-width", "1px");
+      .style("stroke-width", "1px")
+      .style("stroke", function(d,i) { return strokeColor(d.distance); })
 
   var node = svg.selectAll(".node")
     .data(graph.nodes).enter()
       .append("g")
       .attr("class", "node")
-
-  // node.append("circle")
-  //   .attr("r", function(d) { return 20;})
-  //   .style("fill", function(d) { return d.color; })
-  //   .call(force.drag);
-
-  // node.append("title")
-  //   .text(function(d) { return d.name; });
-
-  // node.append("text")
-  //   .attr("dx", 12)
-  //   .attr("dy", ".35em")
-  //   .text(function(d) { return d.name });
-
 
   // *** extract into PieChart component
   var container = node //.selectAll("g.pie")
@@ -78,18 +73,17 @@ d3.json("data/network.json", function(error, graph) {
       .attr("r", r - outerBorder)
       .attr("fill", "white");
 
-  var arcs = container.selectAll("g.slice")
+  var arcs = container.selectAll("g.slice") // build the pie sections
     .data(function(d, i) { return pie(d.colors)})
     .enter()
       .append("svg:g")
         .attr("class", "slice");
 
   arcs.append("svg:path")
-    .attr("fill", function(d, i) { console.log('svg:path', d); return d.data.color; } )
+    .attr("fill", function(d, i) { return d.data.color; } )
     .attr("d", arc);
 
-
-  container.append("svg:text")
+  container.append("svg:text") // add names
     .attr("text-anchor", "middle")
     .attr("y", r+10)
     .text(function(d, i) { return d.name});

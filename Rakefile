@@ -49,7 +49,7 @@ task :create_tables do
     `blue_diff` tinyint(4) NOT NULL,
     `gold_diff` tinyint(4) NOT NULL,
     `green_diff` tinyint(4) NOT NULL,
-    `positive_diff` tinyint(4) NOT NULL,
+    `euclidian_dist` decimal(4,2) NOT NULL,
     `unique` tinyint(4) NOT NULL,
     PRIMARY KEY (`raw_id_1`,`raw_id_2`)
   );
@@ -68,16 +68,13 @@ task :build_diffs do
 
       unique = r1['id'] < r2['id']
 
-      blue_diff = r1['blue'] - r2['blue']
+      blue_diff   = r1['blue'] - r2['blue']
       orange_diff = r1['orange'] - r2['orange']
-      gold_diff = r1['gold'] - r2['gold']
-      green_diff = r1['green'] - r2['green']
+      gold_diff   = r1['gold'] - r2['gold']
+      green_diff  = r1['green'] - r2['green']
 
-      # the sum of differences between two people should add up to 0
-      #
-      # summing the positive difference values gives a larger number for pairs
-      # who are less similar.
-      positive_diff = [blue_diff, orange_diff, gold_diff, green_diff].select{|i| i > 0}.inject(0){|sum,i| sum+i}
+      # http://en.wikipedia.org/wiki/Euclidean_distance#Squared_Euclidean_distance
+      euclidian_dist = Math.sqrt(blue_diff**2 + orange_diff**2 + gold_diff**2 + green_diff**2)
 
       sql = <<-EOF
         INSERT INTO diffs (
@@ -87,7 +84,7 @@ task :build_diffs do
           orange_diff,
           gold_diff,
           green_diff,
-          positive_diff,
+          euclidian_dist,
           `unique`
         ) VALUES (
           #{r1['id']},
@@ -96,7 +93,7 @@ task :build_diffs do
           #{orange_diff},
           #{gold_diff},
           #{green_diff},
-          #{positive_diff},
+          #{euclidian_dist},
           #{unique}
         )
       EOF
@@ -129,12 +126,12 @@ task export: :build_diffs do
   end
   File.open('data/pie.json', 'w') {|f| f.write(pie.to_json)}
 
-  min_diff = 1000
-  max_diff = -1000
+  min_dist = 1000
+  max_dist = -1000
   result = []
-  db.query("SELECT raw_id_1 as id1, raw_id_2 as id2, positive_diff as diff FROM diffs").each do |row|
-    min_diff = [min_diff, row['diff']].min
-    max_diff = [max_diff, row['diff']].max
+  db.query("SELECT raw_id_1 as id1, raw_id_2 as id2, euclidian_dist as distance FROM diffs").each do |row|
+    min_dist = [min_dist, row['distance'].to_f].min
+    max_dist = [max_dist, row['distance'].to_f].max
     result << row
   end
   File.open('data/diffs.json', 'w') {|f| f.write(result.to_json)}
@@ -145,20 +142,31 @@ task export: :build_diffs do
     id_to_idx[item[:id]] = idx
   end
 
-  result = {nodes:pie, links:[]}
+  result = {
+    nodes: pie,
+    links: [],
+    meta: {
+      min_dist: min_dist.to_f,
+      max_dist: max_dist.to_f
+    }
+  }
 
-  log.info "min_diff: #{min_diff}"
-  log.info "max_diff: #{max_diff}"
+  log.info "min_dist: #{min_dist}"
+  log.info "max_dist: #{max_dist}"
 
-  db.query("SELECT raw_id_1 as id1, raw_id_2 as id2, positive_diff as diff FROM diffs WHERE `unique` = 1").each do |row|
-
-    # drop long edges to allow significant connections to show more clearly
-    # next if row['diff'] > (max_diff/3)
+  db.query("SELECT raw_id_1 as id1, raw_id_2 as id2, euclidian_dist as distance FROM diffs WHERE `unique` = 1").each do |row|
+    # drop longest edges to allow significant connections to show more clearly
+    # as the number of edges increases, the force layout has less chance of correctly arranging everything
+    # so the chance of a signifcant distortion goes up.
+    #
+    # keeping short edges (showing close similarity) accurate is more important
+    # than the very longest ones
+    next if row['distance'] > (max_dist - (max_dist/4))
 
     result[:links] << {
       source: id_to_idx[row['id1']],
       target: id_to_idx[row['id2']],
-      distance: row['diff']
+      distance: row['distance'].to_f
     }
   end
   File.open('data/network.json', 'w') {|f| f.write(result.to_json)}
