@@ -1,5 +1,5 @@
-var width = 1000,
-  height = 800;
+var width = 1200,
+  height = 1200;
 
 // pie charts
 var r = 20,
@@ -18,7 +18,7 @@ var force = d3.layout.force()
     return strength(link.distance);
   })
   .linkDistance(function(link, idx) {
-    return link.distance * 40;
+    return link.distance * 45;
   });
 
 var svg = d3.select("body").append("svg")
@@ -41,7 +41,7 @@ d3.json("data/network.json", function(error, graph) {
   var link = svg.selectAll(".link")
     .data(graph.links).enter()
       .append("line")
-      .attr("class", "link")
+      .attr("class", function(d,i) { return d.distance <= 5 ? 'link-close' : 'link'; } )
       //.style("stroke-width", "1px");
 
   var node = svg.selectAll(".node")
