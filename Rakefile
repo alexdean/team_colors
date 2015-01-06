@@ -1,5 +1,6 @@
 require 'mysql2'
 require 'json'
+require 'logger'
 
 def db
   $client ||= Mysql2::Client.new(
@@ -7,6 +8,14 @@ def db
     username: "root",
     database: "team_colors"
   )
+end
+
+def log
+  if !defined?($log)
+    $log ||= Logger.new($stderr)
+    $log.level = Logger::INFO
+  end
+  $log
 end
 
 # return the string color name for the predominant color in a row of `raw` data
@@ -137,10 +146,14 @@ task export: :build_diffs do
   end
 
   result = {nodes:pie, links:[]}
+
+  log.info "min_diff: #{min_diff}"
+  log.info "max_diff: #{max_diff}"
+
   db.query("SELECT raw_id_1 as id1, raw_id_2 as id2, positive_diff as diff FROM diffs WHERE `unique` = 1").each do |row|
 
     # drop long edges to allow significant connections to show more clearly
-    next if row['diff'] > (max_diff/3 + 2)
+    # next if row['diff'] > (max_diff/3)
 
     result[:links] << {
       source: id_to_idx[row['id1']],
