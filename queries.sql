@@ -21,3 +21,10 @@ WHERE
   `unique` = 1
 ORDER BY
   euclidian_dist, raw1.name, raw2.name
+
+# who has the most overall similarity (smallest sum of differences)
+SELECT raw.name, sum(euclidian_dist) AS total_dist
+FROM diffs
+  INNER JOIN raw ON (diffs.raw_id_1 = raw.id)
+GROUP BY name
+ORDER BY total_dist;
